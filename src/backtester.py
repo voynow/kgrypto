@@ -1,3 +1,4 @@
+import time
 from typing import List
 
 import polars as pl
@@ -9,18 +10,18 @@ from src.types.strategy import Action, Trade
 
 def create_baseline_trades(data: pl.DataFrame) -> List[Trade]:
     """Baseline performance of buy and hold strategy"""
-    first_timestamp = data.get_column("timestamp").min()
-    last_timestamp = data.get_column("timestamp").max()
+    first_row = data.head(1)
+    last_row = data.tail(1)
     return [
         Trade(
-            time=first_timestamp,
+            time=first_row.get_column("timestamp")[0],
             action=Action.BUY,
-            price=data.get_column("close").min(),
+            price=first_row.get_column("close")[0],
         ),
         Trade(
-            time=last_timestamp,
+            time=last_row.get_column("timestamp")[0],
             action=Action.SELL,
-            price=data.get_column("close").max(),
+            price=last_row.get_column("close")[0],
         ),
     ]
 
@@ -37,6 +38,8 @@ def validate_trades(trades: List[Trade]) -> None:
 
 def calculate_performance(trades: List[Trade]) -> Performance:
     """Calculate performance of trades"""
+    validate_trades(trades)
+
     p_and_l = 0
     for i in range(0, len(trades), 2):
         buy_trade = trades[i]
@@ -56,6 +59,5 @@ def backtest(data: pl.DataFrame, strategy: str, **kwargs) -> BacktestResponse:
         strategy_name=strategy,
         strategy_performance=calculate_performance(response),
         baseline_performance=calculate_performance(baseline),
-        strategy_trades=response,
-        baseline_trades=baseline,
+        kwargs=kwargs,
     )

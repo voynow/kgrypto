@@ -48,41 +48,49 @@ def validate_params(kwargs: Dict[str, Any], valid_params: Set[str]) -> None:
         raise ValueError(f"Invalid parameters: {invalid_params}")
 
 
-def sma_crossover(data: pl.DataFrame, **kwargs) -> Dict[str, List[Trade]]:
+def sma_crossover(data: pl.DataFrame, **kwargs) -> List[Trade]:
     """
-    Run the SMA Crossover strategy on historical market data.
+    Run the SMA Crossover strategy on historical market data using vectorized operations.
 
     :param data: Polars DataFrame with market data
     :param kwargs: Strategy parameters including short_window and long_window
-    :return:
+    :return: List of trades
     """
     validate_params(kwargs, {"short_window", "long_window"})
     short_window = kwargs.get("short_window", 5)
     long_window = kwargs.get("long_window", 10)
 
-    prices: List[float] = []
-    position: int = 0
+    df = data.with_columns(
+        [
+            pl.col("close").rolling_mean(window_size=short_window).alias("short_sma"),
+            pl.col("close").rolling_mean(window_size=long_window).alias("long_sma"),
+        ]
+    )
+
+    df = df.with_columns(
+        [
+            pl.when(pl.col("short_sma").is_null() | pl.col("long_sma").is_null())
+            .then(0)
+            .otherwise(pl.col("short_sma").gt(pl.col("long_sma")).cast(pl.Int8))
+            .alias("above_sma")
+        ]
+    )
+
+    df = df.with_columns([pl.col("above_sma").diff().alias("signal_change")])
+
+    trade_rows = df.filter(
+        pl.col("signal_change").is_not_null() & (pl.col("signal_change") != 0)
+    )
+
     trades: List[Trade] = []
+    for row in trade_rows.iter_rows(named=True):
+        action = Action.BUY if row["signal_change"] > 0 else Action.SELL
+        trades.append(Trade(time=row["timestamp"], action=action, price=row["close"]))
 
-    for bar in data.to_dicts():
-        price = bar["close"]
-        prices.append(price)
-
-        short_sma, long_sma = calculate_smas(prices, short_window, long_window)
-        signal = generate_trade_signal(short_sma, long_sma, position)
-
-        if signal == Action.BUY:
-            trades.append(Trade(time=bar["timestamp"], action=Action.BUY, price=price))
-            position = 1
-        elif signal == Action.SELL:
-            trades.append(Trade(time=bar["timestamp"], action=Action.SELL, price=price))
-            position = 0
-
-    if position == 1:
-        trades.append(
-            Trade(time=bar["timestamp"], action=Action.SELL, price=prices[-1])
-        )
-
+    # Always close position if we end with a buy
+    if trades and trades[-1].action == Action.BUY:
+        last_row = data.tail(1).row(0)
+        trades.append(Trade(time=last_row[0], action=Action.SELL, price=last_row[1]))
     return trades
 
 

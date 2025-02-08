@@ -1,4 +1,4 @@
-from typing import List
+from typing import Any, Dict, List
 
 from pydantic import BaseModel
 
@@ -14,5 +14,4 @@ class BacktestResponse(BaseModel):
     strategy_name: str
     strategy_performance: Performance
     baseline_performance: Performance
-    strategy_trades: List[Trade]
-    baseline_trades: List[Trade]
+    kwargs: Dict[str, Any]

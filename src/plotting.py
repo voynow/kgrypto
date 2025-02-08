@@ -34,3 +34,47 @@ def plot_agg_df(df: pl.DataFrame, ticker: str, y: list[str] = ["open"]):
         template="plotly_dark",
     )
     fig.show()
+
+
+def plot_strategy_performance(results: list):
+    """
+    Plots a 3D scatter plot showing strategy performance in relation to short_window and long_window.
+
+    :param results: List of strategy results, where each result has
+                    - `strategy_performance.p_and_l_percentage`
+                    - `kwargs['short_window']`
+                    - `kwargs['long_window']`
+    """
+    short_windows = [res.kwargs["short_window"] for res in results]
+    long_windows = [res.kwargs["long_window"] for res in results]
+    pnl_values = [res.strategy_performance.p_and_l_percentage for res in results]
+
+    fig = go.Figure()
+
+    fig.add_trace(
+        go.Scatter3d(
+            x=short_windows,
+            y=long_windows,
+            z=pnl_values,
+            mode="markers",
+            marker=dict(
+                size=6,
+                color=pnl_values,
+                colorscale="Viridis",
+                colorbar=dict(title="P&L %"),
+                opacity=0.8,
+            ),
+        )
+    )
+
+    fig.update_layout(
+        title="Strategy Performance vs Short & Long Window",
+        scene=dict(
+            xaxis_title="Short Window",
+            yaxis_title="Long Window",
+            zaxis_title="P&L Percentage",
+        ),
+        template="plotly_dark",
+    )
+
+    fig.show()

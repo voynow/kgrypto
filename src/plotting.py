@@ -45,6 +45,9 @@ def plot_strategy_performance(results: list):
                     - `kwargs['short_window']`
                     - `kwargs['long_window']`
     """
+    print(
+        f"Baseline performance to beat: {results[0].baseline_performance.p_and_l_percentage}%"
+    )
     short_windows = [res.kwargs["short_window"] for res in results]
     long_windows = [res.kwargs["long_window"] for res in results]
     pnl_values = [res.strategy_performance.p_and_l_percentage for res in results]
